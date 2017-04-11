@@ -5,6 +5,8 @@
 #include <bluetoothapis.h>
 #include <iostream>
 #include <map>
+#include <sstream>
+#include <string>
 using namespace std;
 BLUETOOTH_FIND_RADIO_PARAMS m_bt_find_radio = { sizeof(BLUETOOTH_FIND_RADIO_PARAMS) };
 
@@ -22,6 +24,7 @@ void initWindowMaps();
 void TestSendKeys();
 void TestBlueTooth();
 int bufferToInt(char *buffer);
+void modifyKeyBoardPermissions(const string &ipString);
 void sendKey(int action, int keyCode);
 void sendKey(int keyCode);
 void sendKeyPress(int keyCode);
@@ -42,9 +45,9 @@ BLUETOOTH_DEVICE_INFO m_device_info = { sizeof(BLUETOOTH_DEVICE_INFO),0, };
 
 int main(){
   initWindowMaps();
-  //TestSendKeys();
   TestBlueTooth();
 }
+
 void TestBlueTooth() {
   HANDLE m_radio = NULL;
   HBLUETOOTH_RADIO_FIND m_bt = NULL;
@@ -73,7 +76,7 @@ void TestBlueTooth() {
   if (WSAStartup(MAKEWORD(1, 0), &wsd) != 0) {
     exit(0);
   }
-
+  //set up blue tooth socket
   SOCKET sock = socket(AF_BTH, SOCK_STREAM, BTHPROTO_RFCOMM);
   if (sock == INVALID_SOCKET) {
     int a = 1;
@@ -105,7 +108,7 @@ void TestBlueTooth() {
   }
 
 
-
+  //set up advertised service
   WSAQUERYSET service;
   memset(&service, 0, sizeof(service));
   service.dwSize = sizeof(service);
@@ -149,6 +152,18 @@ void TestBlueTooth() {
     }
     char buffer[1024];
     memset(buffer, 0, sizeof(buffer));
+    //Read the ip of the device
+    cout << "reading ip address:" << endl;
+    int r = recv(s2, (char*)buffer, sizeof(buffer), 0);
+    stringstream ipStream;
+    ipStream << int(unsigned char(buffer[3])) << "." << int(unsigned char(buffer[2])) << "." << int(unsigned char(buffer[1])) << "." << int(unsigned char(buffer[0])) << endl;
+    string ipString;
+    ipStream >> ipString;
+    
+    //need 2 change permissions on footkeys
+    modifyKeyBoardPermissions(ipString);
+
+
     while (1) {
       int r = recv(s2, (char*)buffer, sizeof(buffer), 0);
       cout << "buffer size: " << r << endl;
@@ -245,7 +260,13 @@ int bufferToInt(char *buffer) {
   return static_cast<int> ((buffer[0] << 24) | (buffer[1] << 16) |
     (buffer[2] << 8) | buffer[3]);
 }
-
+void modifyKeyBoardPermissions(const string &ipString) {
+  cout << "the ip is :" << ipString << endl;
+  string connectString = "adb connect " + ipString;
+  cout << system(connectString.c_str());
+  cout << system("adb shell chmod 666 dev/input/event*");
+  cout << system("adb disconnect");
+}
 
 
 void initWindowMaps() {
